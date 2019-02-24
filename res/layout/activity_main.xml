@@ -159,13 +159,6 @@
             android:padding="5dp"
             android:text="AudioEffect" />
 
-        <CheckBox
-            android:id="@+id/cb_noise"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginRight="5dp"
-            android:padding="5dp"
-            android:text="noise" />
 
     </LinearLayout>
 
