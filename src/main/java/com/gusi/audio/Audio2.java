@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.gusi.audio.utils.CloseUtils;
 import com.gusi.audio.utils.ToastUtils;
+import com.gusi.audio.webrtc.Webrtc;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -24,7 +25,7 @@ import java.util.concurrent.Executors;
 /**
  * @Author ylw  2019/2/19 22:24
  */
-public class AudioHelper {
+public class Audio2 {
     private volatile boolean mIsRecording;
     private volatile boolean mIsPlaying;
     private final ExecutorService mService;
@@ -34,7 +35,8 @@ public class AudioHelper {
 
 
     //录音时采用的采样频率，所以播放时同样的采样频率
-    private int sampleRate = 44100;
+//    private int sampleRate = 44100;
+    private int sampleRate = 32000;
 
     //配置录音器
     //单声道输入
@@ -49,14 +51,14 @@ public class AudioHelper {
     int mode = AudioTrack.MODE_STREAM;
     int outChannelConfig = AudioFormat.CHANNEL_OUT_MONO;
 
-    public AudioHelper(MainActivity mainActivity) {
+    public Audio2(MainActivity mainActivity) {
         mService = Executors.newSingleThreadExecutor();
         mMainActivity = mainActivity;
     }
 
 
-    public void recordAndPlayShort(final int audioSource, final AudioEffectEntity effectEntity, final boolean noise) {
-        mMainActivity.changeStatus("recordAndPlayShort 开始 : " + noise);
+    public void recordAndPlayShort(final int audioSource, final AudioEffectEntity effectEntity) {
+        mMainActivity.changeStatus("recordAndPlayShort 开始 : ");
         if (mIsRecording || mIsPlaying) {
             ToastUtils.showShort(mIsPlaying + ":Audio正在录音: " + mIsRecording);
             return;
@@ -88,9 +90,6 @@ public class AudioHelper {
                         //只要还在录音就一直读取
                         int read = audioRecord.read(buffer, 0, minBufferSize);
                         if (read > 0) {
-                            if (noise) {
-                                noise(buffer, 0, minBufferSize);
-                            }
                             audioTrack.write(buffer, 0, minBufferSize);
                         }
 
@@ -207,13 +206,11 @@ public class AudioHelper {
                     while (mIsRecording) {
                         //只要还在录音就一直读取
                         int read = audioRecord.read(buffer, 0, minBufferSize);
-                        if (read > 0) {
+                        if (AudioRecord.ERROR_INVALID_OPERATION != read) {
                             fos.write(buffer, 0, minBufferSize);
                         }
-
                     }
                     //退出循环，停止录音，释放资源
-
                     if (audioRecord != null) {
                         audioRecord.release();
                     }
@@ -232,8 +229,8 @@ public class AudioHelper {
     }
 
 
-    public void recordShort(final int audioSource, final AudioEffectEntity effectEntity, final boolean noise) {
-        mMainActivity.changeStatus("recordShort 开始 : " + noise);
+    public void recordShort(final int audioSource, final AudioEffectEntity effectEntity) {
+        mMainActivity.changeStatus("recordShort 开始 : ");
         if (mIsRecording) {
             ToastUtils.showShort("Audio正在录音: ");
             return;
@@ -265,9 +262,6 @@ public class AudioHelper {
                     while (mIsRecording) {
                         //只要还在录音就一直读取
                         int read = audioRecord.read(buffer, 0, minBufferSize);
-                        if (noise) {
-                            noise(buffer, 0, minBufferSize);
-                        }
                         // 循环将buffer中的音频数据写入到OutputStream中
                         for (int i = 0; i < read; i++) {
                             dos.writeShort(Short.reverseBytes(buffer[i]));
@@ -301,7 +295,7 @@ public class AudioHelper {
         mIsRecording = false;
     }
 
-    public void playByte(final File file) {
+    public void playByte(final File file, final boolean webrtc) {
         mMainActivity.changeStatus("playByte  开始");
         if (mIsRecording) {
             ToastUtils.showShort("Audio 正在录音!");
@@ -314,6 +308,10 @@ public class AudioHelper {
         mService.execute(new Runnable() {
             @Override
             public void run() {
+                String file_out = Environment.getExternalStorageDirectory() + "/123.pcm";
+                if (webrtc) {
+                    Webrtc.noiseSuppression(file.getPath(), file_out, sampleRate, 2);
+                }
                 //配置播放器
                 //计算最小buffer大小
                 int minBufferSize = AudioTrack.getMinBufferSize(sampleRate, outChannelConfig, audioFormat);
@@ -327,11 +325,20 @@ public class AudioHelper {
                 FileInputStream is = null;
                 try {
                     //循环读数据，写到播放器去播放
-                    is = new FileInputStream(file);
+                    File file1 = webrtc ? new File(file_out) : file;
+                    is = new FileInputStream(file1);
                     //循环读数据，写到播放器去播放
-                    int read;
+
                     //只要没读完，循环播放
-                    while (mIsPlaying && (read = is.read(buffer)) > 0) {
+                    while (mIsPlaying && (is.read(buffer) > 0)) {
+//                        if (webrtc) {
+//                            byte[] temp = new byte[minBufferSize];
+//                            System.arraycopy(buffer, 0, temp, 0, minBufferSize);
+//                            Webrtc.noiseSuppressionByBytes(buffer, sampleRate, 0);
+//                            for (int i = 0; i < minBufferSize; i++) {
+//                                Log.w("Fire", "Audio2:334行:" + temp[i] + ":--:" + buffer[i]);
+//                            }
+//                        }
                         int ret = audioTrack.write(buffer, 0, minBufferSize);
                         //检查write的返回值，处理错误
                         switch (ret) {
@@ -343,10 +350,8 @@ public class AudioHelper {
                             default:
                                 break;
                         }
-//                            audioTrack.playByte();
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
                     Log.e("Fire", "MediaActivity:208行:" + e.toString());
                     //读取失败
                     ToastUtils.showShort("播放失败!" + e.toString());
@@ -432,13 +437,15 @@ public class AudioHelper {
         return mAudioRecordFile;
     }
 
-
-    private void noise(short[] lin, int off, int len) {
-        int i, j;
-        for (i = 0; i < len; i++) {
-            j = lin[i + off];
-            lin[i + off] = (short) (j >> 2);
-        }
-    }
+    /**
+     *
+     */
+//    private void noise(short[] lin, int off, int len) {
+//        int i, j;
+//        for (i = 0; i < len; i++) {
+//            j = lin[i + off];
+//            lin[i + off] = (short) (j >> 2);
+//        }
+//    }
 
 }

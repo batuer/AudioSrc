@@ -8,13 +8,11 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Process;
 import android.system.Os;
-import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import com.gusi.audio.AudioJni.AudioJni;
 import com.gusi.audio.utils.PCM;
 import com.gusi.audio.utils.ToastUtils;
 
@@ -26,8 +24,8 @@ public class MainActivity extends Activity {
 
     private TextView mTvPcm, mTvStatus;
     private EditText mEtWeight;
-    private CheckBox mCbAgcNs, mCbPlayByte, mCbRecordByte, mCbSystem, mCbNoise, mCbAudioEffect;
-    private AudioHelper mAudio2;
+    private CheckBox mCbAgcNs, mCbPlayByte, mCbRecordByte, mCbSystem, mCbAudioEffect;
+    private Audio2 mAudio2;
     private List<File> mFileList;
     private File mMixFile;
     private File mProcessFile;
@@ -37,17 +35,16 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mTvPcm = findViewById(R.id.tv_pcm);
-        mTvStatus = findViewById(R.id.tv_status);
-        mEtWeight = findViewById(R.id.et_weight);
-        mCbAgcNs = findViewById(R.id.cb_agc_ns);
-        mCbPlayByte = findViewById(R.id.cb_play_byte);
-        mCbRecordByte = findViewById(R.id.cb_record_byte);
-        mCbSystem = findViewById(R.id.cb_system);
-        mCbNoise = findViewById(R.id.cb_noise);
-        mCbAudioEffect = findViewById(R.id.cb_effect);
+        mTvPcm = (TextView) findViewById(R.id.tv_pcm);
+        mTvStatus = (TextView) findViewById(R.id.tv_status);
+        mEtWeight = (EditText) findViewById(R.id.et_weight);
+        mCbAgcNs = (CheckBox) findViewById(R.id.cb_agc_ns);
+        mCbPlayByte = (CheckBox) findViewById(R.id.cb_play_byte);
+        mCbRecordByte = (CheckBox) findViewById(R.id.cb_record_byte);
+        mCbSystem = (CheckBox) findViewById(R.id.cb_system);
+        mCbAudioEffect = (CheckBox) findViewById(R.id.cb_effect);
 
-        mAudio2 = new AudioHelper(this);
+        mAudio2 = new Audio2(this);
         mFileList = new ArrayList<>();
         //
         if (PackageManager.PERMISSION_GRANTED != checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, Process.myPid(), Os.getuid())) {
@@ -76,12 +73,6 @@ public class MainActivity extends Activity {
                 listFile.delete();
             }
         }
-
-        String s = AudioJni.stringFromJNI();
-        String s1 = AudioJni.stringFromJNITest();
-        Log.w("Fire", "MainActivity:81行:" + s + ":" + s1);
-        ToastUtils.showShort(s + ":---------:" + s1);
-
     }
 
     public void startPlay(View view) {
@@ -89,7 +80,7 @@ public class MainActivity extends Activity {
         if (mCbRecordByte.isChecked()) {
             mAudio2.recordAndPlayByte(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()));
         } else {
-            mAudio2.recordAndPlayShort(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()), mCbNoise.isChecked());
+            mAudio2.recordAndPlayShort(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()));
         }
     }
 
@@ -98,8 +89,9 @@ public class MainActivity extends Activity {
         if (mCbRecordByte.isChecked()) {
             mAudio2.recordByte(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()));
         } else {
-            mAudio2.recordShort(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()), mCbNoise.isChecked());
+            mAudio2.recordShort(audioSource, new AudioEffectEntity(mCbAudioEffect.isChecked()));
         }
+//        WebRtcAudioRecord webRtcAudioRecord = new WebRtcAudioRecord
     }
 
     public void stopRecord(View view) {
@@ -126,7 +118,7 @@ public class MainActivity extends Activity {
             ToastUtils.showShort("RecordFile: " + recordFile);
         } else {
             if (mCbPlayByte.isChecked()) {
-                mAudio2.playByte(recordFile);
+                mAudio2.playByte(recordFile, mCbAgcNs.isChecked());
             } else {
                 mAudio2.playShort(recordFile);
             }
@@ -169,7 +161,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (mCbPlayByte.isChecked()) {
-            mAudio2.playByte(mMixFile);
+            mAudio2.playByte(mMixFile, mCbAgcNs.isChecked());
         } else {
             mAudio2.playShort(mMixFile);
         }
